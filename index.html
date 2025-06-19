@@ -8,6 +8,8 @@
     body {
       margin: 0;
       padding: 0;
+      background-color: #e6f2ff;
+      background-image: url('https://source.unsplash.com/1600x900/?weather');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -119,6 +121,10 @@
     function error() {
       const lat = 40.7128;
       const lon = -74.0060;
+
+      // fallback background
+      document.body.style.backgroundImage = `url('https://source.unsplash.com/1600x900/?cloudy,new-york')`;
+
       document.getElementById("current-details").textContent = "Location denied. Showing New York City weather.";
       getCurrentWeather(lat, lon);
       getHourlyForecast(lat, lon);
@@ -150,7 +156,7 @@
         const condition = data.weather[0].main.toLowerCase();
         const city = data.name;
 
-        // Set background image
+        // set dynamic background
         const query = `${condition},${city}`.replace(/\s+/g, '-');
         document.body.style.backgroundImage = `url('https://source.unsplash.com/1600x900/?${query}')`;
 
