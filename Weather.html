@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Will's Weather Report</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 40px auto;
+      max-width: 600px;
+      padding: 0 20px;
+      background: #e6f2ff;
+      color: #333;
+    }
+    h1 {
+      font-size: 2em;
+      margin-bottom: 0.2em;
+    }
+    h2 {
+      margin-top: 1.8em;
+      font-size: 1.3em;
+      color: #005580;
+    }
+    .summary {
+      font-size: 1em;
+      margin-bottom: 1.2em;
+      color: #444;
+    }
+    .weather-section {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 15px 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    ul {
+      padding-left: 0;
+      list-style-type: none;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5em;
+    }
+    li img {
+      width: 32px;
+      height: 32px;
+      margin-right: 10px;
+    }
+    .day-name {
+      width: 100px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="greeting">Good morning, Will</h1>
+  <p class="summary" id="weather-summary">Loading weather summary...</p>
+
+  <div class="weather-section" id="current-weather">
+    <h2>Right now</h2>
+    <p id="current-details">Loading current weather...</p>
+  </div>
+
+  <div class="weather-section" id="hourly-weather">
+    <h2>Next 12 Hours</h2>
+    <ul id="hourly-forecast"></ul>
+  </div>
+
+  <div class="weather-section" id="weekly-weather">
+    <h2>Weekly Outlook</h2>
+    <ul id="weekly-forecast"></ul>
+  </div>
+
+  <script>
+    const apiKey = 'f9274ab482caa52b5581f2a1d9cffffd'; // Replace with your API key
+
+    const greetingEl = document.getElementById("greeting");
+    const hour = new Date().getHours();
+    let timeOfDay = hour < 12 ? "day" : hour < 18 ? "day" : "night";
+
+    greetingEl.textContent =
+      hour < 12 ? "Good morning, Will" :
+      hour < 18 ? "Good afternoon, Will" :
+      "Good evening, Will";
+
+    navigator.geolocation.getCurrentPosition(success, error);
+
+    function success(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      getCurrentWeather(lat, lon);
+      getHourlyForecast(lat, lon);
+      getDailyForecast(lat, lon);
+    }
+
+    function error() {
+      const lat = 40.7128;
+      const lon = -74.0060;
+      document.getElementById("current-details").textContent = "Location denied. Showing New York City weather.";
+      getCurrentWeather(lat, lon);
+      getHourlyForecast(lat, lon);
+      getDailyForecast(lat, lon);
+    }
+
+    async function getCurrentWeather(lat, lon) {
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const temp = Math.round(data.main.temp);
+        const humidity = data.main.humidity;
+        const wind = Math.round(data.wind.speed);
+        const desc = data.weather[0].description;
+
+        document.getElementById("current-details").textContent =
+          `${desc}, ${temp}°F | Humidity: ${humidity}% | Wind: ${wind} mph`;
+
+        window.currentSummary = `${desc} and ${temp}°F right now.`;
+
+      } catch (err) {
+        document.getElementById("current-details").textContent = "Unable to load current weather.";
+        console.error(err);
+      }
+    }
+
+    async function getHourlyForecast(lat, lon) {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const list = data.list.slice(0, 4); // 4 forecasts = ~12 hours
+
+        const forecastEl = document.getElementById("hourly-forecast");
+        forecastEl.innerHTML = "";
+
+        let laterSummary = "";
+
+        list.forEach((item, index) => {
+          const time = new Date(item.dt * 1000).toLocaleTimeString([], { hour: 'numeric' });
+          const temp = Math.round(item.main.temp);
+          const desc = item.weather[0].main;
+          const icon = item.weather[0].icon;
+          const li = document.createElement("li");
+
+          li.innerHTML = `<img src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" />
+                          <span>${time}: ${temp}°F – ${desc}</span>`;
+          forecastEl.appendChild(li);
+
+          if (index === list.length - 1) {
+            laterSummary = `Expect ${desc.toLowerCase()} and ${temp}°F later this ${timeOfDay}.`;
+          }
+        });
+
+        document.getElementById("weather-summary").textContent =
+          `${window.currentSummary || ''} ${laterSummary}`;
+
+      } catch (err) {
+        document.getElementById("hourly-forecast").innerHTML = "<li>Unable to load forecast.</li>";
+        document.getElementById("weather-summary").textContent = "Unable to load weather summary.";
+        console.error(err);
+      }
+    }
+
+    async function getDailyForecast(lat, lon) {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const dailyData = {};
+
+        // Group by day
+        data.list.forEach(item => {
+          const date = new Date(item.dt * 1000);
+          const dayKey = date.toLocaleDateString(undefined, { weekday: 'short' });
+
+          if (!dailyData[dayKey]) {
+            dailyData[dayKey] = {
+              temps: [],
+              icons: [],
+              descriptions: []
+            };
+          }
+
+          dailyData[dayKey].temps.push(item.main.temp);
+          dailyData[dayKey].icons.push(item.weather[0].icon);
+          dailyData[dayKey].descriptions.push(item.weather[0].main);
+        });
+
+        const forecastEl = document.getElementById("weekly-forecast");
+        forecastEl.innerHTML = "";
+
+        let count = 0;
+        for (const [day, values] of Object.entries(dailyData)) {
+          if (count >= 5) break; // 5 days max
+          const high = Math.round(Math.max(...values.temps));
+          const low = Math.round(Math.min(...values.temps));
+          const icon = values.icons[Math.floor(values.icons.length / 2)];
+          const desc = values.descriptions[Math.floor(values.descriptions.length / 2)];
+
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <span class="day-name">${day}</span>
+            <img src="https://openweathermap.org/img/wn/${icon}.png" alt="${desc}" />
+            <span>${high}° / ${low}° – ${desc}</span>
+          `;
+          forecastEl.appendChild(li);
+          count++;
+        }
+
+      } catch (err) {
+        document.getElementById("weekly-forecast").innerHTML = "<li>Unable to load weekly outlook.</li>";
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>
