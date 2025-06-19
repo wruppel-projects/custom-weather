@@ -74,11 +74,11 @@
   </div>
 
   <script>
-    const apiKey = 'f9274ab482caa52b5581f2a1d9cffffd'; // Replace with your API key
+    const apiKey = 'f9274ab482caa52b5581f2a1d9cffffd';
 
     const greetingEl = document.getElementById("greeting");
     const hour = new Date().getHours();
-    let timeOfDay = hour < 12 ? "day" : hour < 18 ? "day" : "night";
+    let timeOfDay = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
     greetingEl.textContent =
       hour < 12 ? "Good morning, Will" :
@@ -104,6 +104,19 @@
       getDailyForecast(lat, lon);
     }
 
+    function getHumidityLabel(h) {
+      if (h > 75) return "humid";
+      if (h < 35) return "dry";
+      return "comfortable";
+    }
+
+    function getWindLabel(w) {
+      if (w < 5) return "calm";
+      if (w < 10) return "slightly breezy";
+      if (w < 20) return "breezy";
+      return "gusty";
+    }
+
     async function getCurrentWeather(lat, lon) {
       const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
       try {
@@ -118,6 +131,8 @@
           `${desc}, ${temp}°F | Humidity: ${humidity}% | Wind: ${wind} mph`;
 
         window.currentSummary = `${desc} and ${temp}°F right now.`;
+        window.currentHumidity = humidity;
+        window.currentWind = wind;
 
       } catch (err) {
         document.getElementById("current-details").textContent = "Unable to load current weather.";
@@ -130,31 +145,42 @@
       try {
         const response = await fetch(url);
         const data = await response.json();
-        const list = data.list.slice(0, 4); // 4 forecasts = ~12 hours
+        const list = data.list.slice(0, 4); // ~12 hours
 
         const forecastEl = document.getElementById("hourly-forecast");
         forecastEl.innerHTML = "";
 
         let laterSummary = "";
+        let laterRain = 0;
 
         list.forEach((item, index) => {
           const time = new Date(item.dt * 1000).toLocaleTimeString([], { hour: 'numeric' });
           const temp = Math.round(item.main.temp);
           const desc = item.weather[0].main;
           const icon = item.weather[0].icon;
-          const li = document.createElement("li");
+          const pop = item.pop || 0; // Probability of precipitation
 
+          const li = document.createElement("li");
           li.innerHTML = `<img src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="${desc}" />
                           <span>${time}: ${temp}°F – ${desc}</span>`;
           forecastEl.appendChild(li);
 
           if (index === list.length - 1) {
             laterSummary = `Expect ${desc.toLowerCase()} and ${temp}°F later this ${timeOfDay}.`;
+            laterRain = Math.round(pop * 100);
           }
         });
 
+        const humidityLabel = getHumidityLabel(window.currentHumidity || 50);
+        const windLabel = getWindLabel(window.currentWind || 0);
+        const rainPhrase = laterRain > 50
+          ? `There’s a good chance of rain (${laterRain}%)`
+          : laterRain > 20
+          ? `A slight chance of rain (${laterRain}%)`
+          : `Little or no chance of rain`;
+
         document.getElementById("weather-summary").textContent =
-          `${window.currentSummary || ''} ${laterSummary}`;
+          `${window.currentSummary || ''} ${laterSummary} Conditions are ${humidityLabel} and ${windLabel}. ${rainPhrase}.`;
 
       } catch (err) {
         document.getElementById("hourly-forecast").innerHTML = "<li>Unable to load forecast.</li>";
@@ -171,7 +197,6 @@
 
         const dailyData = {};
 
-        // Group by day
         data.list.forEach(item => {
           const date = new Date(item.dt * 1000);
           const dayKey = date.toLocaleDateString(undefined, { weekday: 'short' });
@@ -194,7 +219,7 @@
 
         let count = 0;
         for (const [day, values] of Object.entries(dailyData)) {
-          if (count >= 5) break; // 5 days max
+          if (count >= 5) break;
           const high = Math.round(Math.max(...values.temps));
           const low = Math.round(Math.min(...values.temps));
           const icon = values.icons[Math.floor(values.icons.length / 2)];
